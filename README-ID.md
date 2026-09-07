@@ -1,41 +1,28 @@
-# Meridian Safe Mobile v0.1 (Paper Only)
+# Meridian Safe Mobile v0.3 — Solana Safety Scanner + Paper Trading
 
-Versi belajar untuk Android. **Tidak melakukan transaksi Solana nyata. Tidak meminta private key.**
+Aplikasi Android untuk belajar dan menguji alur scanner token Solana dengan data pasar nyata, tetapi seluruh transaksi tetap **PAPER**.
 
-## Fitur
-- Paper balance 1 SOL.
-- Preset risiko Aman / Seimbang / Agresif.
-- Batas modal per posisi.
-- Simulasi fee dan pergerakan hasil trading.
-- Kill-switch otomatis jika paper balance turun 10%.
-- Foreground service dengan notifikasi permanen saat bot aktif.
-- Wake-lock terbatas agar siklus lebih tahan saat layar mati.
-- Opsi mencoba auto-restart setelah reboot.
-- Emergency stop dan reset paper account.
-- Activity log lokal.
+## Perubahan v0.3
+- Pipeline lengkap: `DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → AGE → SAFETY → SCORE → SIGNAL`.
+- Discovery pool baru dari GeckoTerminal.
+- Enrichment kandidat yang lolos filter dasar menggunakan DEX Screener.
+- Menampilkan harga, liquidity, volume 1h/24h, buy/sell, umur pool, DEX, perubahan 5m/1h, market cap, FDV, mint, dan pool address.
+- Safety filter heuristik: trusted quote (SOL/WSOL/USDC/USDT), momentum ekstrem, buy ratio, kelengkapan data, dan anomali FDV/liquidity.
+- Top Candidate Detail di dashboard.
+- Tombol buka kandidat di Solscan dan DEX Screener.
+- Cooldown token 6 jam setelah paper position ditutup agar bot tidak berulang kali masuk token yang sama.
+- Momentum exit tambahan untuk paper position.
+- Cost allowance paper berbeda per preset risiko.
+- Semua alasan REJECT ditampilkan berdasarkan stage yang gagal.
 
-## Catatan Android
-Aplikasi memakai foreground service tipe `specialUse` karena proses simulasi dimulai pengguna dan perlu terus berjalan saat layar mati. Produsen HP dapat tetap menerapkan pembatasan baterai sendiri. HP yang benar-benar power-off tidak dapat menjalankan APK.
+## Tetap PAPER ONLY
+Tidak ada private key, seed phrase, wallet signing, swap, Jupiter execution, atau transaksi blockchain nyata.
+
+## Catatan Safety Filter
+Filter safety v0.3 adalah filter pasar/heuristik, **bukan audit smart contract penuh**. Mint authority, freeze authority, holder concentration, honeypot/sellability, dan analisis transaksi on-chain mendalam belum diverifikasi langsung. Karena itu jangan menganggap label `SAFE` sebagai jaminan token aman.
+
+## Polling
+Siklus default sekitar 60 detik. Ini near-real-time polling, bukan WebSocket tick-by-tick.
 
 ## Build
-Buka folder ini di Android Studio, tunggu Gradle sync, lalu Build > Build APK(s).
-Project: Java, minSdk 26, targetSdk 35.
-
-## Yang sengaja BELUM ada
-- Private key/wallet.
-- Live trading.
-- Meteora/Jupiter execution.
-- LLM/OpenRouter.
-- Telegram command execution.
-- VPS/server.
-
-Tahap selanjutnya setelah alur paper mode dipahami: ganti simulator dengan market-data read-only, lalu tambahkan live execution di balik risk guard terpisah.
-
-## v0.2 — Solana Live Scanner + Paper Position
-- Discovery pool Solana baru menggunakan GeckoTerminal API.
-- Menampilkan pipeline DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → SIGNAL.
-- Menampilkan token yang ditolak beserta alasannya.
-- PAPER ENTRY hanya untuk kandidat yang lolos filter.
-- Harga posisi dimonitor dari endpoint pair DEX Screener; TP/SL/time-exit hanya memengaruhi saldo simulasi.
-- Tidak menyimpan private key, tidak meminta seed phrase, tidak menandatangani transaksi, dan tidak mengirim swap nyata.
-- Siklus default 60 detik: ini near-real-time polling, bukan WebSocket tick-by-tick.
+Project Android Java: minSdk 26, target/compileSdk 35. GitHub Actions workflow tersedia untuk menghasilkan APK debug.

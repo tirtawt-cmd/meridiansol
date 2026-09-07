@@ -22,7 +22,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Solana Live Scanner + Paper Trading • v0.2"
+            android:text="Solana Live Scanner + Safety Filter + Paper Trading • v0.3"
             android:textSize="14sp"
             android:textColor="#667085"
             android:layout_marginBottom="18dp" />
@@ -98,11 +98,62 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Alur scanner: DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → SIGNAL → PAPER ENTRY → MONITOR → EXIT"
+            android:text="Alur scanner: DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → AGE → SAFETY → SCORE → SIGNAL → PAPER ENTRY → MONITOR → EXIT"
             android:textSize="12sp"
             android:textColor="#475467"
             android:layout_marginTop="8dp"
             android:layout_marginBottom="8dp" />
+
+        <TextView
+            android:id="@+id/lastScanText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Last scan: belum ada"
+            android:textSize="12sp"
+            android:textColor="#667085"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Top candidate detail"
+            android:textStyle="bold"
+            android:textColor="#111827"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:id="@+id/candidateText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:minHeight="170dp"
+            android:text="Belum ada kandidat."
+            android:textSize="12sp"
+            android:textColor="#344054"
+            android:background="#FFFFFF"
+            android:padding="12dp"
+            android:layout_marginTop="6dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="8dp">
+
+            <Button
+                android:id="@+id/solscanButton"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:text="OPEN SOLSCAN" />
+
+            <Button
+                android:id="@+id/dexButton"
+                android:layout_width="0dp"
+                android:layout_height="50dp"
+                android:layout_weight="1"
+                android:layout_marginStart="8dp"
+                android:text="OPEN DEX" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="wrap_content"

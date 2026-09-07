@@ -5,20 +5,22 @@ import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.widget.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-    private TextView status, balance, pnl, trades, logText, scannerText, positionText;
+    private TextView status, balance, pnl, trades, logText, scannerText, positionText, candidateText, lastScanText;
     private Spinner riskSpinner;
     private EditText maxCapital;
     private CheckBox autoRestart;
     private final Handler handler = new Handler(Looper.getMainLooper());
-
     private final Runnable refresh = new Runnable() {
         @Override public void run() { render(); handler.postDelayed(this, 1500); }
     };
@@ -35,6 +37,8 @@ public class MainActivity extends Activity {
         trades = findViewById(R.id.trades);
         logText = findViewById(R.id.logText);
         scannerText = findViewById(R.id.scannerText);
+        candidateText = findViewById(R.id.candidateText);
+        lastScanText = findViewById(R.id.lastScanText);
         positionText = findViewById(R.id.positionText);
         riskSpinner = findViewById(R.id.riskSpinner);
         maxCapital = findViewById(R.id.maxCapital);
@@ -51,8 +55,19 @@ public class MainActivity extends Activity {
         findViewById(R.id.startButton).setOnClickListener(v -> startBot());
         findViewById(R.id.stopButton).setOnClickListener(v -> send(BotService.ACTION_STOP));
         findViewById(R.id.emergencyButton).setOnClickListener(v -> send(BotService.ACTION_EMERGENCY));
+        findViewById(R.id.solscanButton).setOnClickListener(v -> openTop("https://solscan.io/token/", "topMint"));
+        findViewById(R.id.dexButton).setOnClickListener(v -> openTop("https://dexscreener.com/solana/", "topPool"));
         autoRestart.setOnCheckedChangeListener((b1, checked) -> BotState.setAutoRestart(this, checked));
         render();
+    }
+
+    private void openTop(String base, String key) {
+        String id = BotState.p(this).getString(key, "");
+        if (id == null || id.isEmpty()) {
+            Toast.makeText(this, "Belum ada kandidat untuk dibuka.", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(base + id)));
     }
 
     private void startBot() {
@@ -78,8 +93,11 @@ public class MainActivity extends Activity {
         pnl.setText(String.format(Locale.US,"PnL: %+.4f SOL (%+.2f%%)", b-1f, (b-1f)*100f));
         trades.setText(String.format(Locale.US,"Trades: %d • Win: %d • Loss: %d", BotState.trades(this), BotState.wins(this), BotState.losses(this)));
         logText.setText(BotState.log(this));
-        String scan = BotState.p(this).getString("scannerSummary", "Belum ada scan. Tekan START PAPER BOT.");
-        scannerText.setText(scan);
+        scannerText.setText(BotState.p(this).getString("scannerSummary", "Belum ada scan. Tekan START PAPER BOT."));
+        candidateText.setText(BotState.p(this).getString("topCandidateDetail", "Belum ada kandidat."));
+        long at = BotState.p(this).getLong("lastScanAt", 0L);
+        if (at > 0) lastScanText.setText("Last scan: " + new SimpleDateFormat("dd/MM HH:mm:ss", Locale.US).format(new Date(at)) + " • polling ±60 detik");
+        else lastScanText.setText("Last scan: belum ada");
         if (BotState.hasOpenPosition(this)) {
             String sym = BotState.p(this).getString("openSymbol", "?");
             float size = BotState.p(this).getFloat("openSize", 0f);

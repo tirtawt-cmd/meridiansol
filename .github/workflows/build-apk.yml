@@ -20,6 +20,12 @@ jobs:
           distribution: temurin
           java-version: '17'
 
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android 35 SDK
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -29,12 +35,12 @@ jobs:
         run: gradle --no-daemon assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MeridianSafe-v0.1-paper.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk MeridianSafe-v0.3-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MeridianSafe-v0.1-paper
-          path: MeridianSafe-v0.1-paper.apk
+          name: MeridianSafe-v0.3-debug
+          path: MeridianSafe-v0.3-debug.apk
           if-no-files-found: error
           retention-days: 30

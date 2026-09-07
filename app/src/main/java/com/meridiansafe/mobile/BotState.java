@@ -37,6 +37,17 @@ public final class BotState {
         p(c).edit().putBoolean("hasOpenPosition", false).remove("openPair").remove("openToken").remove("openSymbol")
                 .remove("openEntryBits").remove("openSize").remove("openAt").remove("openNetPct").apply();
     }
+
+    public static boolean inCooldown(Context c, String token) {
+        if (token == null || token.isEmpty()) return false;
+        long until = p(c).getLong("cooldown_" + token, 0L);
+        return System.currentTimeMillis() < until;
+    }
+    public static void setCooldown(Context c, String token, long durationMs) {
+        if (token == null || token.isEmpty()) return;
+        p(c).edit().putLong("cooldown_" + token, System.currentTimeMillis() + Math.max(0L, durationMs)).apply();
+    }
+
     public static void reset(Context c) {
         p(c).edit().putFloat("balance",1.0f).putInt("trades",0).putInt("wins",0).putInt("losses",0).putString("log","Paper account reset.\n").apply();
         clearPosition(c);
