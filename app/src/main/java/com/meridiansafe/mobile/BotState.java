@@ -27,7 +27,18 @@ public final class BotState {
         if (next.length() > 7000) next = next.substring(0, 7000);
         p(c).edit().putString("log", next).apply();
     }
+    public static boolean hasOpenPosition(Context c) { return p(c).getBoolean("hasOpenPosition", false); }
+    public static void openPosition(Context c, String pair, String token, String symbol, double entryUsd, float sizeSol) {
+        p(c).edit().putBoolean("hasOpenPosition", true).putString("openPair", pair).putString("openToken", token)
+                .putString("openSymbol", symbol).putLong("openEntryBits", Double.doubleToLongBits(entryUsd))
+                .putFloat("openSize", sizeSol).putLong("openAt", System.currentTimeMillis()).putFloat("openNetPct", 0f).apply();
+    }
+    public static void clearPosition(Context c) {
+        p(c).edit().putBoolean("hasOpenPosition", false).remove("openPair").remove("openToken").remove("openSymbol")
+                .remove("openEntryBits").remove("openSize").remove("openAt").remove("openNetPct").apply();
+    }
     public static void reset(Context c) {
         p(c).edit().putFloat("balance",1.0f).putInt("trades",0).putInt("wins",0).putInt("losses",0).putString("log","Paper account reset.\n").apply();
+        clearPosition(c);
     }
 }

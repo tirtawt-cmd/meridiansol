@@ -30,3 +30,12 @@ Project: Java, minSdk 26, targetSdk 35.
 - VPS/server.
 
 Tahap selanjutnya setelah alur paper mode dipahami: ganti simulator dengan market-data read-only, lalu tambahkan live execution di balik risk guard terpisah.
+
+## v0.2 — Solana Live Scanner + Paper Position
+- Discovery pool Solana baru menggunakan GeckoTerminal API.
+- Menampilkan pipeline DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → SIGNAL.
+- Menampilkan token yang ditolak beserta alasannya.
+- PAPER ENTRY hanya untuk kandidat yang lolos filter.
+- Harga posisi dimonitor dari endpoint pair DEX Screener; TP/SL/time-exit hanya memengaruhi saldo simulasi.
+- Tidak menyimpan private key, tidak meminta seed phrase, tidak menandatangani transaksi, dan tidak mengirim swap nyata.
+- Siklus default 60 detik: ini near-real-time polling, bukan WebSocket tick-by-tick.

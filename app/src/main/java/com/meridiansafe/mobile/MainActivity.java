@@ -13,7 +13,7 @@ import android.widget.*;
 import java.util.Locale;
 
 public class MainActivity extends Activity {
-    private TextView status, balance, pnl, trades, logText;
+    private TextView status, balance, pnl, trades, logText, scannerText, positionText;
     private Spinner riskSpinner;
     private EditText maxCapital;
     private CheckBox autoRestart;
@@ -34,6 +34,8 @@ public class MainActivity extends Activity {
         pnl = findViewById(R.id.pnl);
         trades = findViewById(R.id.trades);
         logText = findViewById(R.id.logText);
+        scannerText = findViewById(R.id.scannerText);
+        positionText = findViewById(R.id.positionText);
         riskSpinner = findViewById(R.id.riskSpinner);
         maxCapital = findViewById(R.id.maxCapital);
         autoRestart = findViewById(R.id.autoRestart);
@@ -76,6 +78,14 @@ public class MainActivity extends Activity {
         pnl.setText(String.format(Locale.US,"PnL: %+.4f SOL (%+.2f%%)", b-1f, (b-1f)*100f));
         trades.setText(String.format(Locale.US,"Trades: %d • Win: %d • Loss: %d", BotState.trades(this), BotState.wins(this), BotState.losses(this)));
         logText.setText(BotState.log(this));
+        String scan = BotState.p(this).getString("scannerSummary", "Belum ada scan. Tekan START PAPER BOT.");
+        scannerText.setText(scan);
+        if (BotState.hasOpenPosition(this)) {
+            String sym = BotState.p(this).getString("openSymbol", "?");
+            float size = BotState.p(this).getFloat("openSize", 0f);
+            float net = BotState.p(this).getFloat("openNetPct", 0f);
+            positionText.setText(String.format(Locale.US,"OPEN PAPER: %s • %.4f SOL • mark %+.2f%%", sym, size, net));
+        } else positionText.setText("OPEN PAPER: tidak ada posisi");
     }
 
     @Override protected void onResume() { super.onResume(); handler.post(refresh); }
