@@ -1,0 +1,83 @@
+package com.meridiansafe.mobile;
+
+import android.Manifest;
+import android.app.Activity;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.os.Build;
+import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.widget.*;
+import java.util.Locale;
+
+public class MainActivity extends Activity {
+    private TextView status, balance, pnl, trades, logText;
+    private Spinner riskSpinner;
+    private EditText maxCapital;
+    private CheckBox autoRestart;
+    private final Handler handler = new Handler(Looper.getMainLooper());
+
+    private final Runnable refresh = new Runnable() {
+        @Override public void run() { render(); handler.postDelayed(this, 1500); }
+    };
+
+    @Override protected void onCreate(Bundle b) {
+        super.onCreate(b);
+        setContentView(R.layout.activity_main);
+        if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED)
+            requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 7);
+
+        status = findViewById(R.id.status);
+        balance = findViewById(R.id.balance);
+        pnl = findViewById(R.id.pnl);
+        trades = findViewById(R.id.trades);
+        logText = findViewById(R.id.logText);
+        riskSpinner = findViewById(R.id.riskSpinner);
+        maxCapital = findViewById(R.id.maxCapital);
+        autoRestart = findViewById(R.id.autoRestart);
+
+        String[] risks = {"Aman", "Seimbang", "Agresif"};
+        ArrayAdapter<String> a = new ArrayAdapter<>(this, android.R.layout.simple_spinner_dropdown_item, risks);
+        riskSpinner.setAdapter(a);
+        String savedRisk = BotState.p(this).getString("risk", "Aman");
+        for (int i=0;i<risks.length;i++) if (risks[i].equals(savedRisk)) riskSpinner.setSelection(i);
+        maxCapital.setText(String.format(Locale.US,"%.3f", BotState.p(this).getFloat("maxCapital",0.05f)));
+        autoRestart.setChecked(BotState.autoRestart(this));
+
+        findViewById(R.id.startButton).setOnClickListener(v -> startBot());
+        findViewById(R.id.stopButton).setOnClickListener(v -> send(BotService.ACTION_STOP));
+        findViewById(R.id.emergencyButton).setOnClickListener(v -> send(BotService.ACTION_EMERGENCY));
+        autoRestart.setOnCheckedChangeListener((b1, checked) -> BotState.setAutoRestart(this, checked));
+        render();
+    }
+
+    private void startBot() {
+        float cap = 0.05f;
+        try { cap = Float.parseFloat(maxCapital.getText().toString()); } catch (Exception ignored) {}
+        cap = Math.max(0.005f, Math.min(cap, 0.25f));
+        BotState.p(this).edit().putFloat("maxCapital",cap).putString("risk", String.valueOf(riskSpinner.getSelectedItem())).apply();
+        Intent s = new Intent(this, BotService.class).setAction(BotService.ACTION_START);
+        if (Build.VERSION.SDK_INT >= 26) startForegroundService(s); else startService(s);
+    }
+
+    private void send(String action) {
+        Intent s = new Intent(this, BotService.class).setAction(action);
+        startService(s);
+    }
+
+    private void render() {
+        boolean r = BotState.running(this);
+        status.setText(r ? "STATUS: RUNNING • PAPER" : "STATUS: STOPPED");
+        status.setTextColor(Color.parseColor(r ? "#166534" : "#991B1B"));
+        float b = BotState.balance(this);
+        balance.setText(String.format(Locale.US,"Paper balance: %.4f SOL", b));
+        pnl.setText(String.format(Locale.US,"PnL: %+.4f SOL (%+.2f%%)", b-1f, (b-1f)*100f));
+        trades.setText(String.format(Locale.US,"Trades: %d • Win: %d • Loss: %d", BotState.trades(this), BotState.wins(this), BotState.losses(this)));
+        logText.setText(BotState.log(this));
+    }
+
+    @Override protected void onResume() { super.onResume(); handler.post(refresh); }
+    @Override protected void onPause() { handler.removeCallbacks(refresh); super.onPause(); }
+}

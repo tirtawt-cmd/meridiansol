@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true"
+    android:background="#F4F6F8">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="18dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Meridian Safe"
+            android:textStyle="bold"
+            android:textSize="28sp"
+            android:textColor="#111827" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Local Paper Trading • v0.1"
+            android:textSize="14sp"
+            android:textColor="#667085"
+            android:layout_marginBottom="18dp" />
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="STATUS: STOPPED"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:textColor="#991B1B"
+            android:padding="14dp"
+            android:background="#FEE2E2" />
+
+        <TextView
+            android:id="@+id/balance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Paper balance: 1.0000 SOL"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:textColor="#111827"
+            android:layout_marginTop="18dp" />
+
+        <TextView
+            android:id="@+id/pnl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="PnL: +0.0000 SOL"
+            android:textSize="18sp"
+            android:textColor="#344054"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:id="@+id/trades"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Trades: 0 • Win: 0 • Loss: 0"
+            android:textSize="15sp"
+            android:textColor="#475467"
+            android:layout_marginTop="4dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Risk preset"
+            android:textStyle="bold"
+            android:textColor="#111827"
+            android:layout_marginTop="22dp" />
+
+        <Spinner
+            android:id="@+id/riskSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="52dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Max paper capital per position (SOL)"
+            android:textStyle="bold"
+            android:textColor="#111827"
+            android:layout_marginTop="12dp" />
+
+        <EditText
+            android:id="@+id/maxCapital"
+            android:layout_width="match_parent"
+            android:layout_height="52dp"
+            android:inputType="numberDecimal"
+            android:text="0.05"
+            android:hint="0.05" />
+
+        <Button
+            android:id="@+id/startButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="START PAPER BOT"
+            android:layout_marginTop="18dp" />
+
+        <Button
+            android:id="@+id/stopButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="STOP BOT"
+            android:layout_marginTop="8dp" />
+
+        <Button
+            android:id="@+id/emergencyButton"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:text="EMERGENCY STOP + RESET POSITION"
+            android:layout_marginTop="8dp" />
+
+        <CheckBox
+            android:id="@+id/autoRestart"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Coba hidupkan kembali setelah HP restart"
+            android:layout_marginTop="10dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Activity log"
+            android:textStyle="bold"
+            android:textColor="#111827"
+            android:layout_marginTop="20dp" />
+
+        <TextView
+            android:id="@+id/logText"
+            android:layout_width="match_parent"
+            android:layout_height="260dp"
+            android:text="Belum ada aktivitas.\n"
+            android:textSize="13sp"
+            android:textColor="#344054"
+            android:background="#FFFFFF"
+            android:padding="12dp"
+            android:layout_marginTop="6dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="LIVE MODE sengaja belum tersedia pada versi ini. Tidak ada private key atau transaksi blockchain nyata."
+            android:textSize="12sp"
+            android:textColor="#7F1D1D"
+            android:background="#FEF2F2"
+            android:padding="12dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="24dp" />
+    </LinearLayout>
+</ScrollView>
