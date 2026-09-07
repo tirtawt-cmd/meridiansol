@@ -22,7 +22,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Solana Live Scanner + Safety Filter + Paper Trading • v0.3"
+            android:text="Solana Adaptive Scanner + WATCH/CONFIRM + Paper Trading • v0.3.1"
             android:textSize="14sp"
             android:textColor="#667085"
             android:layout_marginBottom="18dp" />
@@ -98,7 +98,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Alur scanner: DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → AGE → SAFETY → SCORE → SIGNAL → PAPER ENTRY → MONITOR → EXIT"
+            android:text="Alur scanner: DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → AGE → SAFETY → WATCH → CONFIRM → SIGNAL → PAPER ENTRY → MONITOR → EXIT"
             android:textSize="12sp"
             android:textColor="#475467"
             android:layout_marginTop="8dp"

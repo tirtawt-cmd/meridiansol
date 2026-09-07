@@ -10,7 +10,6 @@ import java.net.URL;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -20,9 +19,8 @@ import java.util.Set;
 
 /**
  * Read-only Solana market scanner.
- * Discovery: GeckoTerminal new pools.
- * Enrichment/mark: DEX Screener pair endpoint.
- * No wallet, signing, swap or blockchain write exists in this class.
+ * v0.3.1 calibration: lower discovery thresholds + WATCH candidates.
+ * PAPER only: no wallet, signing, swap or blockchain write.
  */
 public final class SolanaScanner {
     private static final String NEW_POOLS =
@@ -30,10 +28,7 @@ public final class SolanaScanner {
     private static final String PAIR = "https://api.dexscreener.com/latest/dex/pairs/solana/";
 
     private static final Set<String> TRUSTED_QUOTES = new HashSet<>();
-    static {
-        Collections.addAll(TRUSTED_QUOTES,
-                "SOL", "WSOL", "USDC", "USDT");
-    }
+    static { Collections.addAll(TRUSTED_QUOTES, "SOL", "WSOL", "USDC", "USDT"); }
 
     public static final class Candidate {
         public String poolAddress = "";
@@ -60,6 +55,8 @@ public final class SolanaScanner {
         public String stage = "DISCOVERY";
         public boolean enriched;
         public boolean safetyPass;
+        public boolean watchReady;
+        public int confirmCount;
     }
 
     public static final class ScanResult {
@@ -69,6 +66,7 @@ public final class SolanaScanner {
         public int volumePass;
         public int activityPass;
         public int safetyPass;
+        public int watchPass;
         public int signalPass;
         public int enrichedCount;
         public String source = "GeckoTerminal + DEX Screener";
@@ -136,13 +134,11 @@ public final class SolanaScanner {
             if (qa != null) {
                 c.quoteSymbol = qa.optString("symbol", "?");
                 c.quoteAddress = qa.optString("address", stripNetworkPrefix(quoteId));
-            } else {
-                c.quoteAddress = stripNetworkPrefix(quoteId);
-            }
+            } else c.quoteAddress = stripNetworkPrefix(quoteId);
 
             evaluateBase(c, risk, out);
-            // Enrich only candidates that already reached ACTIVITY. This limits API calls.
-            if ("ACTIVITY".equals(c.stage) && !c.poolAddress.isEmpty()) {
+            // v0.3.1 enriches WATCH-eligible candidates, not only strict v0.3 candidates.
+            if ("ENRICH".equals(c.stage) && !c.poolAddress.isEmpty()) {
                 PairMark mark = markPair(c.poolAddress);
                 if (mark.ok) {
                     out.enrichedCount++;
@@ -154,16 +150,17 @@ public final class SolanaScanner {
                     c.change1h = mark.priceChange1h;
                     if (mark.priceUsd > 0) c.priceUsd = mark.priceUsd;
                     if (mark.liquidityUsd > 0) c.liquidityUsd = mark.liquidityUsd;
-                    evaluateSafetyAndSignal(c, risk, out);
+                    evaluateSafetyAndWatch(c, risk, out);
                 } else {
-                    c.reason = "safety data belum tersedia: " + safe(mark.error);
                     c.stage = "SAFETY";
+                    c.reason = "data safety belum tersedia: " + safe(mark.error);
                 }
             }
             out.all.add(c);
         }
 
         Collections.sort(out.all, (a, b) -> {
+            if (a.watchReady != b.watchReady) return a.watchReady ? -1 : 1;
             int byScore = Integer.compare(b.score, a.score);
             if (byScore != 0) return byScore;
             return Double.compare(b.liquidityUsd, a.liquidityUsd);
@@ -197,19 +194,20 @@ public final class SolanaScanner {
         return m;
     }
 
+    /** Lower calibration thresholds than v0.3. These only create WATCH candidates. */
     private void evaluateBase(Candidate c, String risk, ScanResult out) {
-        double minLiq = risk.equals("Agresif") ? 12000 : risk.equals("Seimbang") ? 25000 : 50000;
-        double minVol1h = risk.equals("Agresif") ? 4000 : risk.equals("Seimbang") ? 9000 : 18000;
-        int minTx = risk.equals("Agresif") ? 12 : risk.equals("Seimbang") ? 20 : 35;
-        double minAge = risk.equals("Agresif") ? 2 : risk.equals("Seimbang") ? 5 : 10;
-        double maxAge = risk.equals("Agresif") ? 72 * 60 : risk.equals("Seimbang") ? 48 * 60 : 24 * 60;
+        double minLiq = risk.equals("Agresif") ? 8000 : risk.equals("Seimbang") ? 12000 : 18000;
+        double minVol1h = risk.equals("Agresif") ? 2500 : risk.equals("Seimbang") ? 4000 : 5000;
+        int minTx = risk.equals("Agresif") ? 10 : risk.equals("Seimbang") ? 15 : 18;
+        double minAge = risk.equals("Agresif") ? 1 : risk.equals("Seimbang") ? 2 : 3;
+        double maxAge = risk.equals("Agresif") ? 96 * 60 : risk.equals("Seimbang") ? 72 * 60 : 48 * 60;
 
         boolean liq = c.liquidityUsd >= minLiq;
         if (liq) out.liquidityPass++;
         boolean vol = liq && c.volume1h >= minVol1h;
         if (vol) out.volumePass++;
         int tx = c.buys1h + c.sells1h;
-        boolean activity = vol && tx >= minTx && c.buys1h >= Math.max(3, (int)Math.ceil(c.sells1h * 0.75));
+        boolean activity = vol && tx >= minTx && c.buys1h >= Math.max(3, (int)Math.ceil(c.sells1h * 0.60));
         if (activity) out.activityPass++;
         boolean age = c.ageMinutes >= minAge && c.ageMinutes <= maxAge;
         boolean price = c.priceUsd > 0;
@@ -229,20 +227,20 @@ public final class SolanaScanner {
         else if (!age) { c.stage = "AGE"; c.reason = "umur pool " + ageText(c.ageMinutes) + " di luar filter"; }
         else if (!price) { c.stage = "PRICE"; c.reason = "harga belum tersedia"; }
         else if (!token) { c.stage = "TOKEN"; c.reason = "mint address tidak valid/tersedia"; }
-        else { c.stage = "ACTIVITY"; c.reason = "lolos filter dasar; cek safety"; }
+        else { c.stage = "ENRICH"; c.reason = "lolos filter kalibrasi; cek safety"; }
     }
 
-    private void evaluateSafetyAndSignal(Candidate c, String risk, ScanResult out) {
-        double maxPump5m = risk.equals("Agresif") ? 85 : risk.equals("Seimbang") ? 55 : 35;
-        double maxPump1h = risk.equals("Agresif") ? 300 : risk.equals("Seimbang") ? 180 : 120;
-        double maxDump5m = risk.equals("Agresif") ? -45 : risk.equals("Seimbang") ? -35 : -25;
-        double minBuyRatio = risk.equals("Agresif") ? 0.45 : risk.equals("Seimbang") ? 0.50 : 0.55;
+    private void evaluateSafetyAndWatch(Candidate c, String risk, ScanResult out) {
+        double maxPump5m = risk.equals("Agresif") ? 100 : risk.equals("Seimbang") ? 75 : 55;
+        double maxPump1h = risk.equals("Agresif") ? 400 : risk.equals("Seimbang") ? 260 : 180;
+        double maxDump5m = risk.equals("Agresif") ? -50 : risk.equals("Seimbang") ? -40 : -30;
+        double minBuyRatio = risk.equals("Agresif") ? 0.45 : risk.equals("Seimbang") ? 0.48 : 0.50;
         int total = c.buys1h + c.sells1h;
-        double buyRatio = total <= 0 ? 0 : c.buys1h / (double)total;
+        double buyRatio = total <= 0 ? 0 : c.buys1h / (double) total;
         boolean quoteTrusted = TRUSTED_QUOTES.contains(c.quoteSymbol.toUpperCase(Locale.US));
         boolean momentumOkay = c.change5m <= maxPump5m && c.change1h <= maxPump1h && c.change5m >= maxDump5m;
         boolean flowOkay = buyRatio >= minBuyRatio;
-        boolean valuationOkay = c.fdv <= 0 || c.fdv >= c.liquidityUsd * 2.0;
+        boolean valuationOkay = c.fdv <= 0 || c.fdv >= c.liquidityUsd * 1.5;
         boolean dataOkay = c.enriched && c.priceUsd > 0 && c.liquidityUsd > 0;
 
         if (quoteTrusted) c.score += 5;
@@ -250,46 +248,43 @@ public final class SolanaScanner {
         if (flowOkay) c.score += 5;
         if (valuationOkay) c.score += 3;
         if (dataOkay) c.score += 2;
-
         c.score = Math.min(100, c.score);
+
         c.safetyPass = quoteTrusted && momentumOkay && flowOkay && valuationOkay && dataOkay;
         if (c.safetyPass) out.safetyPass++;
+        int minWatchScore = risk.equals("Agresif") ? 70 : risk.equals("Seimbang") ? 74 : 76;
 
-        int minScore = risk.equals("Agresif") ? 78 : risk.equals("Seimbang") ? 82 : 86;
-        if (!quoteTrusted) { c.stage = "SAFETY"; c.reason = "quote token " + c.quoteSymbol + " bukan SOL/WSOL/USDC/USDT"; }
-        else if (!momentumOkay) { c.stage = "SAFETY"; c.reason = String.format(Locale.US,"momentum ekstrem 5m %+.1f%% / 1h %+.1f%%",c.change5m,c.change1h); }
-        else if (!flowOkay) { c.stage = "SAFETY"; c.reason = String.format(Locale.US,"buy ratio %.0f%% terlalu rendah",buyRatio*100); }
-        else if (!valuationOkay) { c.stage = "SAFETY"; c.reason = "FDV terlalu dekat/di bawah liquidity; data anomali"; }
-        else if (!dataOkay) { c.stage = "SAFETY"; c.reason = "data harga/liquidity enrichment belum lengkap"; }
-        else if (c.score < minScore) { c.stage = "SCORE"; c.reason = "score " + c.score + " < minimum " + minScore; }
+        if (!quoteTrusted) { c.stage = "SAFETY"; c.reason = "quote " + c.quoteSymbol + " bukan SOL/WSOL/USDC/USDT"; }
+        else if (!momentumOkay) { c.stage = "SAFETY"; c.reason = String.format(Locale.US, "momentum ekstrem 5m %+.1f%% / 1h %+.1f%%", c.change5m, c.change1h); }
+        else if (!flowOkay) { c.stage = "SAFETY"; c.reason = String.format(Locale.US, "buy ratio %.0f%% terlalu rendah", buyRatio * 100); }
+        else if (!valuationOkay) { c.stage = "SAFETY"; c.reason = "FDV/liquidity terlihat anomali"; }
+        else if (!dataOkay) { c.stage = "SAFETY"; c.reason = "data harga/liquidity belum lengkap"; }
+        else if (c.score < minWatchScore) { c.stage = "SCORE"; c.reason = "score " + c.score + " < WATCH " + minWatchScore; }
         else {
-            c.stage = "SIGNAL";
-            c.decision = "PAPER BUY";
-            c.reason = "lolos liquidity + volume + activity + age + safety";
-            out.signalPass++;
+            c.stage = "WATCH";
+            c.decision = "WATCH";
+            c.watchReady = true;
+            c.reason = "lolos filter + safety; tunggu konfirmasi scan berikutnya";
+            out.watchPass++;
         }
     }
 
     public static String summary(ScanResult s) {
         StringBuilder b = new StringBuilder();
         b.append(String.format(Locale.US,
-                "DISCOVERY %d → LIQ %d → VOL %d → ACTIVITY %d → SAFE %d → SIGNAL %d\n",
-                s.discovered, s.liquidityPass, s.volumePass, s.activityPass, s.safetyPass, s.signalPass));
-        b.append("Data: ").append(s.source).append(" • enriched ").append(s.enrichedCount).append("\n\n");
+                "DISCOVERY %d → LIQ %d → VOL %d → ACT %d → SAFE %d → WATCH %d → SIGNAL %d\n",
+                s.discovered, s.liquidityPass, s.volumePass, s.activityPass, s.safetyPass, s.watchPass, s.signalPass));
+        b.append("v0.3.1 calibration • ").append(s.source).append(" • enriched ").append(s.enrichedCount).append("\n\n");
         int n = Math.min(12, s.all.size());
-        for (int i=0;i<n;i++) {
+        for (int i = 0; i < n; i++) {
             Candidate c = s.all.get(i);
-            b.append(String.format(Locale.US,
-                    "%d. %s/%s | score %d | %s\n",
-                    i+1, c.symbol, c.quoteSymbol, c.score, c.decision));
-            b.append(String.format(Locale.US,
-                    "   liq $%s • vol1h $%s • B/S %d/%d • age %s\n",
+            b.append(String.format(Locale.US, "%d. %s/%s | score %d | %s\n", i + 1, c.symbol, c.quoteSymbol, c.score, c.decision));
+            b.append(String.format(Locale.US, "   liq $%s • vol1h $%s • B/S %d/%d • age %s\n",
                     compact(c.liquidityUsd), compact(c.volume1h), c.buys1h, c.sells1h, ageText(c.ageMinutes)));
-            if (c.enriched) {
-                b.append(String.format(Locale.US,
-                        "   %s • 5m %+.1f%% • 1h %+.1f%% • MC $%s • FDV $%s\n",
-                        c.dexId, c.change5m, c.change1h, compact(c.marketCap), compact(c.fdv)));
-            }
+            if (c.enriched) b.append(String.format(Locale.US,
+                    "   %s • 5m %+.1f%% • 1h %+.1f%% • MC $%s • FDV $%s\n",
+                    c.dexId, c.change5m, c.change1h, compact(c.marketCap), compact(c.fdv)));
+            if (c.confirmCount > 0) b.append("   confirm ").append(c.confirmCount).append(" scan berturut-turut\n");
             b.append("   ").append(c.stage).append(": ").append(c.reason).append("\n");
             b.append("   mint ").append(shortId(c.tokenAddress)).append(" • pool ").append(shortId(c.poolAddress)).append("\n\n");
         }
@@ -301,86 +296,54 @@ public final class SolanaScanner {
         int total = c.buys1h + c.sells1h;
         double br = total == 0 ? 0 : c.buys1h * 100.0 / total;
         return String.format(Locale.US,
-                "%s (%s/%s)\n%s • score %d • %s\nHarga $%.10f\nLiquidity $%s • Vol 1h $%s • Vol 24h $%s\nBuy/Sell %d/%d • buy ratio %.0f%%\nUmur %s • DEX %s\n5m %+.2f%% • 1h %+.2f%%\nMarket cap $%s • FDV $%s\nMint: %s\nPool: %s\nAlasan: %s",
+                "%s (%s/%s)\n%s • score %d • %s\nHarga $%.10f\nLiquidity $%s • Vol 1h $%s • Vol 24h $%s\nBuy/Sell %d/%d • buy ratio %.0f%%\nUmur %s • DEX %s\n5m %+.2f%% • 1h %+.2f%%\nMarket cap $%s • FDV $%s\nConfirm: %d scan\nMint: %s\nPool: %s\nAlasan: %s",
                 c.name, c.symbol, c.quoteSymbol, c.decision, c.score, c.stage,
                 c.priceUsd, compact(c.liquidityUsd), compact(c.volume1h), compact(c.volume24h),
                 c.buys1h, c.sells1h, br, ageText(c.ageMinutes), c.dexId,
-                c.change5m, c.change1h, compact(c.marketCap), compact(c.fdv),
+                c.change5m, c.change1h, compact(c.marketCap), compact(c.fdv), c.confirmCount,
                 c.tokenAddress, c.poolAddress, c.reason);
     }
 
-    public static Candidate bestSignal(ScanResult s) {
-        for (Candidate c : s.all) if ("PAPER BUY".equals(c.decision)) return c;
+    public static Candidate bestWatch(ScanResult s) {
+        for (Candidate c : s.all) if (c.watchReady) return c;
         return null;
     }
-
-    public static Candidate bestCandidate(ScanResult s) {
-        return s == null || s.all.isEmpty() ? null : s.all.get(0);
-    }
+    public static Candidate bestCandidate(ScanResult s) { return s == null || s.all.isEmpty() ? null : s.all.get(0); }
 
     private static JSONObject getJson(String url) throws Exception {
-        HttpURLConnection c = (HttpURLConnection)new URL(url).openConnection();
-        c.setConnectTimeout(10000);
-        c.setReadTimeout(15000);
-        c.setRequestMethod("GET");
+        HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+        c.setConnectTimeout(10000); c.setReadTimeout(15000); c.setRequestMethod("GET");
         c.setRequestProperty("Accept", "application/json");
-        c.setRequestProperty("User-Agent", "MeridianSafeMobile/0.3 paper-scanner");
+        c.setRequestProperty("User-Agent", "MeridianSafeMobile/0.3.1 calibration-paper");
         int code = c.getResponseCode();
-        BufferedReader br = new BufferedReader(new InputStreamReader(
-                code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream()));
-        StringBuilder sb = new StringBuilder();
-        String line;
+        BufferedReader br = new BufferedReader(new InputStreamReader(code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream()));
+        StringBuilder sb = new StringBuilder(); String line;
         while ((line = br.readLine()) != null) sb.append(line);
-        br.close();
-        c.disconnect();
+        br.close(); c.disconnect();
         if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
         return new JSONObject(sb.toString());
     }
 
     private static String relationshipId(JSONObject rel, String key) {
-        if (rel == null) return "";
-        JSONObject x = rel.optJSONObject(key);
-        JSONObject d = x == null ? null : x.optJSONObject("data");
+        if (rel == null) return ""; JSONObject x = rel.optJSONObject(key); JSONObject d = x == null ? null : x.optJSONObject("data");
         return d == null ? "" : d.optString("id", "");
     }
     private static double d(JSONObject o, String k) { return parse(o.optString(k, "0")); }
-    private static double nestedDouble(JSONObject o, String k1, String k2) {
-        JSONObject x = o.optJSONObject(k1); return x == null ? 0 : parse(String.valueOf(x.opt(k2)));
-    }
-    private static int nestedInt2(JSONObject o, String k1, String k2, String k3) {
-        JSONObject x = o.optJSONObject(k1); if (x == null) return 0;
-        JSONObject y = x.optJSONObject(k2); return y == null ? 0 : y.optInt(k3, 0);
-    }
+    private static double nestedDouble(JSONObject o, String k1, String k2) { JSONObject x = o.optJSONObject(k1); return x == null ? 0 : parse(String.valueOf(x.opt(k2))); }
+    private static int nestedInt2(JSONObject o, String k1, String k2, String k3) { JSONObject x = o.optJSONObject(k1); if (x == null) return 0; JSONObject y = x.optJSONObject(k2); return y == null ? 0 : y.optInt(k3, 0); }
     private static double parse(String s) { try { return Double.parseDouble(s); } catch (Exception e) { return 0; } }
-    private static double ageMinutes(String iso) {
-        try { return Math.max(0, (System.currentTimeMillis() - Instant.parse(iso).toEpochMilli()) / 60000.0); }
-        catch (Exception e) { return 0; }
-    }
-    private static String firstSymbol(String poolName) {
-        if (poolName == null) return "?";
-        String x = poolName.split("/")[0].trim();
-        return x.length() > 12 ? x.substring(0,12) : x;
-    }
-    private static String stripNetworkPrefix(String id) {
-        if (id == null) return "";
-        int p = id.indexOf('_'); return p >= 0 ? id.substring(p+1) : id;
-    }
+    private static double ageMinutes(String iso) { try { return Math.max(0, (System.currentTimeMillis() - Instant.parse(iso).toEpochMilli()) / 60000.0); } catch (Exception e) { return 0; } }
+    private static String firstSymbol(String poolName) { if (poolName == null) return "?"; String x = poolName.split("/")[0].trim(); return x.length() > 12 ? x.substring(0, 12) : x; }
+    private static String stripNetworkPrefix(String id) { if (id == null) return ""; int p = id.indexOf('_'); return p >= 0 ? id.substring(p + 1) : id; }
     private static String normalizePoolAddress(String id) { return stripNetworkPrefix(id); }
     private static String compact(double v) {
         if (v <= 0) return "0";
-        if (v >= 1_000_000_000) return String.format(Locale.US,"%.2fB",v/1_000_000_000d);
-        if (v >= 1_000_000) return String.format(Locale.US,"%.1fM",v/1_000_000d);
-        if (v >= 1_000) return String.format(Locale.US,"%.1fK",v/1_000d);
-        return String.format(Locale.US,"%.0f",v);
+        if (v >= 1_000_000_000) return String.format(Locale.US, "%.2fB", v / 1_000_000_000d);
+        if (v >= 1_000_000) return String.format(Locale.US, "%.1fM", v / 1_000_000d);
+        if (v >= 1_000) return String.format(Locale.US, "%.1fK", v / 1_000d);
+        return String.format(Locale.US, "%.0f", v);
     }
-    private static String ageText(double min) {
-        if (min >= 1440) return String.format(Locale.US,"%.1fd",min/1440d);
-        if (min >= 60) return String.format(Locale.US,"%.1fh",min/60d);
-        return String.format(Locale.US,"%.0fm",min);
-    }
-    private static String shortId(String s) {
-        if (s == null || s.length() < 12) return s == null ? "" : s;
-        return s.substring(0,6) + "…" + s.substring(s.length()-5);
-    }
+    private static String ageText(double min) { if (min >= 1440) return String.format(Locale.US, "%.1fd", min / 1440d); if (min >= 60) return String.format(Locale.US, "%.1fh", min / 60d); return String.format(Locale.US, "%.0fm", min); }
+    private static String shortId(String s) { if (s == null || s.length() < 12) return s == null ? "" : s; return s.substring(0, 6) + "…" + s.substring(s.length() - 5); }
     private static String safe(String s) { return s == null || s.trim().isEmpty() ? "unknown" : s; }
 }

@@ -1,28 +1,27 @@
-# Meridian Safe Mobile v0.3 — Solana Safety Scanner + Paper Trading
+# Meridian Safe Mobile v0.3.1 — Calibration WATCH/CONFIRM
 
-Aplikasi Android untuk belajar dan menguji alur scanner token Solana dengan data pasar nyata, tetapi seluruh transaksi tetap **PAPER**.
+Versi kalibrasi dari v0.3. Scanner tetap memakai data pasar Solana nyata dan seluruh transaksi tetap **PAPER ONLY**.
 
-## Perubahan v0.3
-- Pipeline lengkap: `DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → AGE → SAFETY → SCORE → SIGNAL`.
-- Discovery pool baru dari GeckoTerminal.
-- Enrichment kandidat yang lolos filter dasar menggunakan DEX Screener.
-- Menampilkan harga, liquidity, volume 1h/24h, buy/sell, umur pool, DEX, perubahan 5m/1h, market cap, FDV, mint, dan pool address.
-- Safety filter heuristik: trusted quote (SOL/WSOL/USDC/USDT), momentum ekstrem, buy ratio, kelengkapan data, dan anomali FDV/liquidity.
-- Top Candidate Detail di dashboard.
-- Tombol buka kandidat di Solscan dan DEX Screener.
-- Cooldown token 6 jam setelah paper position ditutup agar bot tidak berulang kali masuk token yang sama.
-- Momentum exit tambahan untuk paper position.
-- Cost allowance paper berbeda per preset risiko.
-- Semua alasan REJECT ditampilkan berdasarkan stage yang gagal.
+## Tujuan v0.3.1
+v0.3 terlalu ketat untuk banyak new pool. v0.3.1 menurunkan ambang awal agar kandidat potensial tidak langsung dibuang, tetapi kandidat **tidak langsung BUY**. Kandidat harus melewati sistem:
 
-## Tetap PAPER ONLY
-Tidak ada private key, seed phrase, wallet signing, swap, Jupiter execution, atau transaksi blockchain nyata.
+`DISCOVERY → LIQUIDITY → VOLUME → ACTIVITY → AGE → SAFETY → WATCH → CONFIRM → PAPER BUY`
 
-## Catatan Safety Filter
-Filter safety v0.3 adalah filter pasar/heuristik, **bukan audit smart contract penuh**. Mint authority, freeze authority, holder concentration, honeypot/sellability, dan analisis transaksi on-chain mendalam belum diverifikasi langsung. Karena itu jangan menganggap label `SAFE` sebagai jaminan token aman.
+## Ambang kalibrasi default
+Preset **Aman** kira-kira: liquidity >= $18K, volume 1h >= $5K, transaksi >= 18, umur >= 3 menit, buy ratio >= 50%, WATCH score >= 76. Preset Seimbang/Agresif lebih longgar.
 
-## Polling
-Siklus default sekitar 60 detik. Ini near-real-time polling, bukan WebSocket tick-by-tick.
+## WATCH/CONFIRM
+- Kandidat yang lolos filter + safety masuk `WATCH`.
+- Aman perlu 3 scan berturut-turut; Seimbang/Agresif perlu 2 scan.
+- Streak reset bila kandidat hilang terlalu lama atau liquidity/volume/harga turun tajam.
+- Konfirmasi akhir masih memeriksa score dan momentum sebelum PAPER ENTRY.
 
-## Build
-Project Android Java: minSdk 26, target/compileSdk 35. GitHub Actions workflow tersedia untuk menghasilkan APK debug.
+## Yang tetap sama
+- Hanya satu posisi paper pada satu waktu.
+- Cooldown token 6 jam setelah exit.
+- TP/SL/time exit dan cost allowance tetap mengikuti preset risiko.
+- Kill switch paper balance -10% tetap aktif.
+- Tidak ada wallet, private key, seed phrase, signing, swap, atau transaksi blockchain nyata.
+
+## Catatan
+Safety di versi ini tetap market heuristic, bukan audit smart contract lengkap. Label WATCH/SAFE bukan jaminan token aman.

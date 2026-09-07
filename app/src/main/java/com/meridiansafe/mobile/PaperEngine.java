@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-/** Paper engine driven by real Solana market observations. No real orders are sent. */
+/** v0.3.1 adaptive WATCH/CONFIRM paper engine. No real orders are sent. */
 public final class PaperEngine {
     private final Context context;
     private final SolanaScanner scanner = new SolanaScanner();
@@ -17,7 +17,29 @@ public final class PaperEngine {
             if (BotState.hasOpenPosition(context)) monitorOpen(risk);
 
             SolanaScanner.ScanResult r = scanner.scan(risk);
-            SolanaScanner.Candidate top = SolanaScanner.bestCandidate(r);
+            SolanaScanner.Candidate watch = SolanaScanner.bestWatch(r);
+            SolanaScanner.Candidate signal = null;
+
+            if (!BotState.hasOpenPosition(context) && watch != null) {
+                int count = BotState.observeWatch(context, watch);
+                watch.confirmCount = count;
+                int need = risk.equals("Aman") ? 3 : 2; // ~3 min Aman, ~2 min Seimbang/Agresif at 60s polling
+                if (BotState.inCooldown(context, watch.tokenAddress)) {
+                    watch.decision = "COOLDOWN";
+                    watch.stage = "WAIT";
+                    watch.reason = "token masih cooldown setelah trade sebelumnya";
+                } else if (count >= need && confirmationHealthy(watch, risk)) {
+                    watch.decision = "PAPER BUY";
+                    watch.stage = "SIGNAL";
+                    watch.reason = "WATCH terkonfirmasi " + count + " scan; liquidity/volume/momentum tetap sehat";
+                    r.signalPass = 1;
+                    signal = watch;
+                } else {
+                    watch.reason = "WATCH " + count + "/" + need + " • tunggu data berikutnya tetap sehat";
+                }
+            }
+
+            SolanaScanner.Candidate top = signal != null ? signal : SolanaScanner.bestCandidate(r);
             BotState.p(context).edit()
                     .putString("scannerSummary", SolanaScanner.summary(r))
                     .putString("topCandidateDetail", SolanaScanner.detail(top))
@@ -26,21 +48,32 @@ public final class PaperEngine {
                     .putLong("lastScanAt", System.currentTimeMillis())
                     .putInt("scanDiscovered", r.discovered)
                     .putInt("scanSafe", r.safetyPass)
+                    .putInt("scanWatch", r.watchPass)
                     .putInt("scanSignal", r.signalPass).apply();
-            log(String.format(Locale.US,
-                    "SCAN LIVE: %d pool | liq %d | vol %d | activity %d | safe %d | signal %d",
-                    r.discovered, r.liquidityPass, r.volumePass, r.activityPass, r.safetyPass, r.signalPass));
 
-            if (!BotState.hasOpenPosition(context)) {
-                SolanaScanner.Candidate best = SolanaScanner.bestSignal(r);
-                if (best != null && !BotState.inCooldown(context, best.tokenAddress)) openPaper(best, risk);
-                else if (best != null) log("WAIT: " + best.symbol + " masih dalam cooldown setelah trade sebelumnya.");
-                else log("WAIT: belum ada token yang lolos sampai SAFETY + SCORE.");
+            log(String.format(Locale.US,
+                    "SCAN LIVE: %d pool | liq %d | vol %d | activity %d | safe %d | watch %d | signal %d",
+                    r.discovered, r.liquidityPass, r.volumePass, r.activityPass, r.safetyPass, r.watchPass, r.signalPass));
+
+            if (signal != null && !BotState.hasOpenPosition(context)) {
+                openPaper(signal, risk);
+                BotState.clearWatch(context, signal.tokenAddress);
+            } else if (!BotState.hasOpenPosition(context) && watch != null) {
+                log("WATCH: " + watch.symbol + " • " + watch.reason);
+            } else if (!BotState.hasOpenPosition(context)) {
+                log("WAIT: belum ada kandidat yang lolos menjadi WATCH.");
             }
         } catch (Exception e) {
             String msg = e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage();
             log("SCAN ERROR: " + msg + " — koneksi/API akan dicoba lagi pada siklus berikutnya.");
         }
+    }
+
+    private boolean confirmationHealthy(SolanaScanner.Candidate c, String risk) {
+        if (!c.safetyPass || c.priceUsd <= 0 || c.liquidityUsd <= 0) return false;
+        double minScore = risk.equals("Agresif") ? 72 : risk.equals("Seimbang") ? 76 : 78;
+        double minChange5m = risk.equals("Agresif") ? -20 : risk.equals("Seimbang") ? -15 : -12;
+        return c.score >= minScore && c.change5m >= minChange5m;
     }
 
     private void openPaper(SolanaScanner.Candidate c, String risk) {
@@ -51,8 +84,8 @@ public final class PaperEngine {
         if (c.priceUsd <= 0 || c.poolAddress.isEmpty()) return;
         BotState.openPosition(context, c.poolAddress, c.tokenAddress, c.symbol, c.priceUsd, size);
         log(String.format(Locale.US,
-                "PAPER ENTRY: %s | %.4f SOL | $%.10f | score %d | liq $%.0f | 5m %+.1f%%",
-                c.symbol, size, c.priceUsd, c.score, c.liquidityUsd, c.change5m));
+                "PAPER ENTRY: %s | %.4f SOL | $%.10f | score %d | confirm %d | liq $%.0f | 5m %+.1f%%",
+                c.symbol, size, c.priceUsd, c.score, c.confirmCount, c.liquidityUsd, c.change5m));
     }
 
     private void monitorOpen(String risk) {
@@ -92,8 +125,7 @@ public final class PaperEngine {
         int t = BotState.trades(context) + 1;
         int w = BotState.wins(context), l = BotState.losses(context);
         if (pnl >= 0) w++; else l++;
-        BotState.setBalance(context, next);
-        BotState.setStats(context, t, w, l);
+        BotState.setBalance(context, next); BotState.setStats(context, t, w, l);
         BotState.setCooldown(context, token, 6 * 60 * 60 * 1000L);
         BotState.clearPosition(context);
         log(String.format(Locale.US,

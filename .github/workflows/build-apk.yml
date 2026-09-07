@@ -35,12 +35,12 @@ jobs:
         run: gradle --no-daemon assembleDebug
 
       - name: Rename APK
-        run: cp app/build/outputs/apk/debug/app-debug.apk MeridianSafe-v0.3-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk MeridianSafe-v0.3.1-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: MeridianSafe-v0.3-debug
-          path: MeridianSafe-v0.3-debug.apk
+          name: MeridianSafe-v0.3.1-debug
+          path: MeridianSafe-v0.3.1-debug.apk
           if-no-files-found: error
           retention-days: 30
