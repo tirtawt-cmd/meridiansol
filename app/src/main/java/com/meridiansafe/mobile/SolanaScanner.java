@@ -19,7 +19,7 @@ import java.util.Set;
 
 /**
  * Read-only Solana market scanner.
- * v0.3.1 calibration: lower discovery thresholds + WATCH candidates.
+ * v0.3.2 capital protection: lower discovery thresholds + WATCH candidates.
  * PAPER only: no wallet, signing, swap or blockchain write.
  */
 public final class SolanaScanner {
@@ -231,9 +231,9 @@ public final class SolanaScanner {
     }
 
     private void evaluateSafetyAndWatch(Candidate c, String risk, ScanResult out) {
-        double maxPump5m = risk.equals("Agresif") ? 100 : risk.equals("Seimbang") ? 75 : 55;
-        double maxPump1h = risk.equals("Agresif") ? 400 : risk.equals("Seimbang") ? 260 : 180;
-        double maxDump5m = risk.equals("Agresif") ? -50 : risk.equals("Seimbang") ? -40 : -30;
+        double maxPump5m = risk.equals("Agresif") ? 35 : risk.equals("Seimbang") ? 28 : 22;
+        double maxPump1h = risk.equals("Agresif") ? 180 : risk.equals("Seimbang") ? 140 : 100;
+        double maxDump5m = risk.equals("Agresif") ? -18 : risk.equals("Seimbang") ? -14 : -10;
         double minBuyRatio = risk.equals("Agresif") ? 0.45 : risk.equals("Seimbang") ? 0.48 : 0.50;
         int total = c.buys1h + c.sells1h;
         double buyRatio = total <= 0 ? 0 : c.buys1h / (double) total;
@@ -252,7 +252,7 @@ public final class SolanaScanner {
 
         c.safetyPass = quoteTrusted && momentumOkay && flowOkay && valuationOkay && dataOkay;
         if (c.safetyPass) out.safetyPass++;
-        int minWatchScore = risk.equals("Agresif") ? 70 : risk.equals("Seimbang") ? 74 : 76;
+        int minWatchScore = risk.equals("Agresif") ? 78 : risk.equals("Seimbang") ? 80 : 82;
 
         if (!quoteTrusted) { c.stage = "SAFETY"; c.reason = "quote " + c.quoteSymbol + " bukan SOL/WSOL/USDC/USDT"; }
         else if (!momentumOkay) { c.stage = "SAFETY"; c.reason = String.format(Locale.US, "momentum ekstrem 5m %+.1f%% / 1h %+.1f%%", c.change5m, c.change1h); }
@@ -274,7 +274,7 @@ public final class SolanaScanner {
         b.append(String.format(Locale.US,
                 "DISCOVERY %d → LIQ %d → VOL %d → ACT %d → SAFE %d → WATCH %d → SIGNAL %d\n",
                 s.discovered, s.liquidityPass, s.volumePass, s.activityPass, s.safetyPass, s.watchPass, s.signalPass));
-        b.append("v0.3.1 calibration • ").append(s.source).append(" • enriched ").append(s.enrichedCount).append("\n\n");
+        b.append("v0.3.2 capital protection • ").append(s.source).append(" • enriched ").append(s.enrichedCount).append("\n\n");
         int n = Math.min(12, s.all.size());
         for (int i = 0; i < n; i++) {
             Candidate c = s.all.get(i);
@@ -314,7 +314,7 @@ public final class SolanaScanner {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(10000); c.setReadTimeout(15000); c.setRequestMethod("GET");
         c.setRequestProperty("Accept", "application/json");
-        c.setRequestProperty("User-Agent", "MeridianSafeMobile/0.3.1 calibration-paper");
+        c.setRequestProperty("User-Agent", "MeridianSafeMobile/0.3.2 capital-protection-paper");
         int code = c.getResponseCode();
         BufferedReader br = new BufferedReader(new InputStreamReader(code >= 200 && code < 300 ? c.getInputStream() : c.getErrorStream()));
         StringBuilder sb = new StringBuilder(); String line;

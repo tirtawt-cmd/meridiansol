@@ -58,10 +58,13 @@ public class BotService extends Service {
         wakeLock.acquire(30 * 60 * 1000L); // bounded; reacquired per cycle loop if needed
         worker = new Thread(() -> {
             PaperEngine engine = new PaperEngine(getApplicationContext());
+            long lastScan = 0L;
             while (loop && BotState.running(this)) {
-                engine.cycle();
+                long now = System.currentTimeMillis();
+                if (lastScan == 0L || now - lastScan >= 60_000L) { engine.cycle(); lastScan = now; }
+                else engine.monitorOnly();
                 if (!BotState.running(this)) break;
-                try { Thread.sleep(60_000L); } catch (InterruptedException ignored) { break; }
+                try { Thread.sleep(10_000L); } catch (InterruptedException ignored) { break; }
                 if (wakeLock != null && !wakeLock.isHeld()) wakeLock.acquire(30 * 60 * 1000L);
             }
             stopBot(false);

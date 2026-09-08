@@ -22,7 +22,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Solana Adaptive Scanner + WATCH/CONFIRM + Paper Trading • v0.3.1"
+            android:text="Solana Capital Protection Scanner + WATCH/CONFIRM + Paper Trading • v0.3.2"
             android:textSize="14sp"
             android:textColor="#667085"
             android:layout_marginBottom="18dp" />
@@ -108,7 +108,7 @@
             android:id="@+id/lastScanText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Last scan: belum ada"
+            android:text="Last scan: belum ada • posisi dimonitor ±10 detik"
             android:textSize="12sp"
             android:textColor="#667085"
             android:layout_marginBottom="12dp" />

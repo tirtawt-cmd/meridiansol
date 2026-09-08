@@ -96,7 +96,7 @@ public class MainActivity extends Activity {
         scannerText.setText(BotState.p(this).getString("scannerSummary", "Belum ada scan. Tekan START PAPER BOT."));
         candidateText.setText(BotState.p(this).getString("topCandidateDetail", "Belum ada kandidat."));
         long at = BotState.p(this).getLong("lastScanAt", 0L);
-        if (at > 0) lastScanText.setText("Last scan: " + new SimpleDateFormat("dd/MM HH:mm:ss", Locale.US).format(new Date(at)) + " • polling ±60 detik");
+        if (at > 0) lastScanText.setText("Last scan: " + new SimpleDateFormat("dd/MM HH:mm:ss", Locale.US).format(new Date(at)) + " • scan ±60 detik • monitor posisi ±10 detik");
         else lastScanText.setText("Last scan: belum ada");
         if (BotState.hasOpenPosition(this)) {
             String sym = BotState.p(this).getString("openSymbol", "?");

@@ -5,7 +5,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-/** v0.3.1 adaptive WATCH/CONFIRM paper engine. No real orders are sent. */
+/** v0.3.2 capital-protection paper engine. No real orders are sent. */
 public final class PaperEngine {
     private final Context context;
     private final SolanaScanner scanner = new SolanaScanner();
@@ -23,7 +23,7 @@ public final class PaperEngine {
             if (!BotState.hasOpenPosition(context) && watch != null) {
                 int count = BotState.observeWatch(context, watch);
                 watch.confirmCount = count;
-                int need = risk.equals("Aman") ? 3 : 2; // ~3 min Aman, ~2 min Seimbang/Agresif at 60s polling
+                int need = risk.equals("Aman") ? 4 : risk.equals("Seimbang") ? 3 : 3; // ~3 min Aman, ~2 min Seimbang/Agresif at 60s polling
                 if (BotState.inCooldown(context, watch.tokenAddress)) {
                     watch.decision = "COOLDOWN";
                     watch.stage = "WAIT";
@@ -69,18 +69,27 @@ public final class PaperEngine {
         }
     }
 
+    public void monitorOnly() {
+        try { if (BotState.hasOpenPosition(context)) monitorOpen(BotState.p(context).getString("risk", "Aman")); }
+        catch (Exception e) { log("MONITOR ERROR: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage())); }
+    }
+
     private boolean confirmationHealthy(SolanaScanner.Candidate c, String risk) {
         if (!c.safetyPass || c.priceUsd <= 0 || c.liquidityUsd <= 0) return false;
-        double minScore = risk.equals("Agresif") ? 72 : risk.equals("Seimbang") ? 76 : 78;
-        double minChange5m = risk.equals("Agresif") ? -20 : risk.equals("Seimbang") ? -15 : -12;
-        return c.score >= minScore && c.change5m >= minChange5m;
+        double minScore = risk.equals("Agresif") ? 80 : risk.equals("Seimbang") ? 82 : 84;
+        double minChange5m = risk.equals("Agresif") ? -8 : risk.equals("Seimbang") ? -6 : -5;
+        double maxChange5m = risk.equals("Agresif") ? 25 : risk.equals("Seimbang") ? 20 : 15;
+        double minLiq = risk.equals("Agresif") ? 12000 : risk.equals("Seimbang") ? 18000 : 25000;
+        return c.score >= minScore && c.change5m >= minChange5m && c.change5m <= maxChange5m && c.liquidityUsd >= minLiq;
     }
 
     private void openPaper(SolanaScanner.Candidate c, String risk) {
         float balance = BotState.balance(context);
         float maxCapital = BotState.p(context).getFloat("maxCapital", 0.05f);
-        float fraction = risk.equals("Agresif") ? 0.12f : risk.equals("Seimbang") ? 0.075f : 0.04f;
-        float size = Math.min(maxCapital, Math.max(0.005f, balance * fraction));
+        // Capital protection: user max is only a ceiling; actual size is risk/liquidity capped.
+        float fraction = risk.equals("Agresif") ? 0.05f : risk.equals("Seimbang") ? 0.035f : 0.025f;
+        float liquidityCap = (float)Math.max(0.005, Math.min(0.05, c.liquidityUsd / 400000.0));
+        float size = Math.min(maxCapital, Math.min(liquidityCap, Math.max(0.005f, balance * fraction)));
         if (c.priceUsd <= 0 || c.poolAddress.isEmpty()) return;
         BotState.openPosition(context, c.poolAddress, c.tokenAddress, c.symbol, c.priceUsd, size);
         log(String.format(Locale.US,
@@ -104,7 +113,7 @@ public final class PaperEngine {
         double netPct = rawPct - costAllowance;
         long heldMin = Math.max(0, (System.currentTimeMillis() - openedAt) / 60000L);
         double tp = risk.equals("Agresif") ? 12.0 : risk.equals("Seimbang") ? 7.0 : 4.0;
-        double sl = risk.equals("Agresif") ? -6.0 : risk.equals("Seimbang") ? -3.5 : -2.0;
+        double sl = risk.equals("Agresif") ? -4.0 : risk.equals("Seimbang") ? -3.0 : -2.0;
         long maxHold = risk.equals("Agresif") ? 60 : risk.equals("Seimbang") ? 45 : 30;
 
         BotState.p(context).edit().putFloat("openNetPct", (float)netPct).apply();
@@ -115,8 +124,8 @@ public final class PaperEngine {
         if (netPct >= tp) closePaper(symbol, token, size, netPct, "TAKE PROFIT");
         else if (netPct <= sl) closePaper(symbol, token, size, netPct, "STOP LOSS");
         else if (heldMin >= maxHold) closePaper(symbol, token, size, netPct, "TIME EXIT");
-        else if (m.liquidityUsd > 0 && m.liquidityUsd < 5000) closePaper(symbol, token, size, netPct, "LIQUIDITY EXIT");
-        else if (m.priceChange5m <= -35) closePaper(symbol, token, size, netPct, "MOMENTUM EXIT");
+        else if (m.liquidityUsd > 0 && m.liquidityUsd < 8000) closePaper(symbol, token, size, netPct, "LIQUIDITY EXIT");
+        else if (m.priceChange5m <= -15) closePaper(symbol, token, size, netPct, "MOMENTUM EXIT");
     }
 
     private void closePaper(String symbol, String token, float size, double netPct, String why) {

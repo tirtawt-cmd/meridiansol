@@ -63,10 +63,10 @@ public final class BotState {
         double oldPrice = Double.longBitsToDouble(oldPriceBits);
 
         boolean recent = last > 0 && now - last <= 3 * 60_000L;
-        boolean liqStable = oldLiq <= 0 || x.liquidityUsd >= oldLiq * 0.80;
-        boolean volStable = oldVol <= 0 || x.volume1h >= oldVol * 0.75;
-        boolean priceStable = oldPrice <= 0 || x.priceUsd >= oldPrice * 0.80;
-        boolean stable = recent && liqStable && volStable && priceStable && x.change5m > -25;
+        boolean liqStable = oldLiq <= 0 || x.liquidityUsd >= oldLiq * 0.90;
+        boolean volStable = oldVol <= 0 || x.volume1h >= oldVol * 0.85;
+        boolean priceStable = oldPrice <= 0 || x.priceUsd >= oldPrice * 0.92;
+        boolean stable = recent && liqStable && volStable && priceStable && x.change5m > -12;
         int count = stable ? oldCount + 1 : 1;
 
         sp.edit().putLong(key + "_at", now).putInt(key + "_count", count)
